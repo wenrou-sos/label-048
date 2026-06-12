@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface Coach {
   id: number;
@@ -16,11 +19,6 @@ interface Booking {
   endTime: string;
   status: string;
   notes: string | null;
-  student: {
-    user: {
-      name: string;
-    };
-  };
   coach: {
     user: {
       name: string;
@@ -32,12 +30,13 @@ interface Booking {
 }
 
 export default function BookingPage() {
+  const { user, studentId, isLoading } = useAuth();
+  const router = useRouter();
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [selectedCoach, setSelectedCoach] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
-  const [studentId, setStudentId] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -51,9 +50,18 @@ export default function BookingPage() {
   ];
 
   useEffect(() => {
+    if (isLoading) return;
+    
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
     fetchCoaches();
-    fetchBookings();
-  }, []);
+    if (studentId) {
+      fetchMyBookings();
+    }
+  }, [user, studentId, isLoading, router]);
 
   const fetchCoaches = async () => {
     try {
@@ -65,9 +73,9 @@ export default function BookingPage() {
     }
   };
 
-  const fetchBookings = async () => {
+  const fetchMyBookings = async () => {
     try {
-      const response = await fetch('/api/bookings');
+      const response = await fetch(`/api/bookings?studentId=${studentId}`);
       const data = await response.json();
       setBookings(data.bookings || []);
     } catch (error) {
@@ -99,7 +107,13 @@ export default function BookingPage() {
     e.preventDefault();
     setMessage('');
 
-    if (!studentId || !selectedCoach || !selectedDate || !selectedTime) {
+    if (!studentId) {
+      setMessage('请先登录学员账号');
+      setMessageType('error');
+      return;
+    }
+
+    if (!selectedCoach || !selectedDate || !selectedTime) {
       setMessage('请填写完整信息');
       setMessageType('error');
       return;
@@ -118,7 +132,7 @@ export default function BookingPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          studentId: parseInt(studentId, 10),
+          studentId: studentId,
           coachId: parseInt(selectedCoach, 10),
           date: selectedDate,
           startTime: startDateTime.toISOString(),
@@ -135,7 +149,7 @@ export default function BookingPage() {
 
       setMessage('预约成功！请等待教练确认');
       setMessageType('success');
-      fetchBookings();
+      fetchMyBookings();
       
       setSelectedCoach('');
       setSelectedDate('');
@@ -162,7 +176,7 @@ export default function BookingPage() {
       });
 
       if (response.ok) {
-        fetchBookings();
+        fetchMyBookings();
         setMessage('预约已取消');
         setMessageType('success');
       }
@@ -173,114 +187,129 @@ export default function BookingPage() {
 
   const today = new Date().toISOString().split('T')[0];
 
+  if (isLoading) {
+    return (
+      <div className="text-center py-12">
+        <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
+        <p className="mt-4 text-gray-600">加载中...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-gray-800">在线预约</h1>
-        <p className="text-gray-600 mt-1">选择教练和时间，轻松预约练车</p>
+        <p className="text-gray-600 mt-1">
+          {user.role === 'STUDENT' ? '选择教练和时间，轻松预约练车' : '查看和管理预约'}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="card p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">预约练车</h2>
+          {user.role === 'STUDENT' && (
+            <div className="card p-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">预约练车</h2>
 
-            {message && (
-              <div
-                className={`p-4 rounded-lg mb-4 ${
-                  messageType === 'success'
-                    ? 'bg-green-50 text-green-700'
-                    : 'bg-red-50 text-red-700'
-                }`}
-              >
-                {message}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="label">学员ID</label>
-                <input
-                  type="number"
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
-                  className="input"
-                  placeholder="请输入学员ID"
-                />
-              </div>
-
-              <div>
-                <label className="label">选择教练</label>
-                <select
-                  value={selectedCoach}
-                  onChange={(e) => setSelectedCoach(e.target.value)}
-                  className="input"
+              {message && (
+                <div
+                  className={`p-4 rounded-lg mb-4 ${
+                    messageType === 'success'
+                      ? 'bg-green-50 text-green-700'
+                      : 'bg-red-50 text-red-700'
+                  }`}
                 >
-                  <option value="">请选择教练</option>
-                  {coaches.map((coach) => (
-                    <option key={coach.id} value={coach.id}>
-                      {coach.user.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="label">选择日期</label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  min={today}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="input"
-                />
-              </div>
-
-              <div>
-                <label className="label">选择时间段</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {timeSlots.map((slot) => (
-                    <button
-                      key={slot}
-                      type="button"
-                      onClick={() => setSelectedTime(slot)}
-                      className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${
-                        selectedTime === slot
-                          ? 'border-blue-600 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 hover:border-blue-300 text-gray-700'
-                      }`}
-                    >
-                      {slot}
-                    </button>
-                  ))}
+                  {message}
                 </div>
-              </div>
+              )}
 
-              <div>
-                <label className="label">备注（选填）</label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="input h-24 resize-none"
-                  placeholder="请输入备注信息"
-                />
-              </div>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="label">选择教练</label>
+                  <select
+                    value={selectedCoach}
+                    onChange={(e) => setSelectedCoach(e.target.value)}
+                    className="input"
+                  >
+                    <option value="">请选择教练</option>
+                    {coaches.map((coach) => (
+                      <option key={coach.id} value={coach.id}>
+                        {coach.user.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full btn-primary py-3 text-lg disabled:opacity-50"
-              >
-                {loading ? '提交中...' : '提交预约'}
-              </button>
-            </form>
-          </div>
+                <div>
+                  <label className="label">选择日期</label>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    min={today}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="input"
+                  />
+                </div>
+
+                <div>
+                  <label className="label">选择时间段</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {timeSlots.map((slot) => (
+                      <button
+                        key={slot}
+                        type="button"
+                        onClick={() => setSelectedTime(slot)}
+                        className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                          selectedTime === slot
+                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                            : 'border-gray-200 hover:border-blue-300 text-gray-700'
+                        }`}
+                      >
+                        {slot}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label">备注（选填）</label>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="input h-24 resize-none"
+                    placeholder="请输入备注信息"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full btn-primary py-3 text-lg disabled:opacity-50"
+                >
+                  {loading ? '提交中...' : '提交预约'}
+                </button>
+              </form>
+            </div>
+          )}
 
           <div className="card p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">预约记录</h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-4">我的预约</h2>
             <div className="space-y-3">
               {bookings.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">暂无预约记录</p>
+                <div className="text-center py-8">
+                  <p className="text-gray-500 mb-4">暂无预约记录</p>
+                  {user.role === 'STUDENT' ? (
+                    <p className="text-sm text-gray-400">在上方表单中填写信息即可预约</p>
+                  ) : (
+                    <Link href="/booking" className="text-blue-600 hover:underline">
+                      去预约
+                    </Link>
+                  )}
+                </div>
               ) : (
                 bookings.slice(0, 10).map((booking) => (
                   <div
@@ -379,6 +408,15 @@ export default function BookingPage() {
               </div>
             </div>
           </div>
+
+          {user.role === 'STUDENT' && !studentId && (
+            <div className="card p-6 bg-yellow-50 border border-yellow-200">
+              <h3 className="font-bold text-yellow-800 mb-2">提示</h3>
+              <p className="text-sm text-yellow-700">
+                您的学员信息尚未完善，请先完善个人信息后再预约。
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

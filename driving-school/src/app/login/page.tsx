@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -37,13 +39,9 @@ export default function LoginPage() {
         throw new Error(data.error || '登录失败');
       }
 
-      if (data.user?.role === 'STUDENT' && data.studentId) {
-        router.push(`/students/${data.studentId}`);
-      } else if (data.user?.role === 'COACH') {
-        router.push('/coaches');
-      } else {
-        router.push('/');
-      }
+      login(data.user, data.studentId, data.coachId);
+
+      router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败');
     } finally {

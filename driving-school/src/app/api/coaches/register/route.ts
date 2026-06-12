@@ -8,7 +8,8 @@ const registerSchema = z.object({
   password: z.string().min(6),
   name: z.string().min(1),
   phone: z.string().optional(),
-  licenseType: z.enum(['C1', 'C2', 'B1', 'B2', 'A1', 'A2', 'A3', 'D', 'E', 'F']).optional(),
+  bio: z.string().optional(),
+  specialties: z.string().optional(),
 });
 
 export async function POST(request: Request) {
@@ -35,18 +36,21 @@ export async function POST(request: Request) {
         password: hashedPassword,
         name: validated.name,
         phone: validated.phone,
-        role: 'STUDENT',
-        student: {
+        role: 'COACH',
+        coach: {
           create: {
-            licenseType: validated.licenseType || 'C1',
-            studyPhase: 'SUBJECT_1',
-            licenseStatus: 'NOT_APPLIED',
-            enrollDate: new Date(),
+            bio: validated.bio,
+            specialties: validated.specialties,
+            experience: 0,
+            rating: 0,
+            totalReviews: 0,
+            pricePerHour: 100,
+            status: 'pending',
           },
         },
       },
       include: {
-        student: true,
+        coach: true,
       },
     });
 
@@ -54,14 +58,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       { 
-        message: '注册成功', 
+        message: '注册成功，请等待管理员审核', 
         user: userWithoutPassword,
-        student: user.student,
+        coach: user.coach,
       },
       { status: 201 }
     );
   } catch (error) {
-    console.error('注册失败:', error);
+    console.error('教练注册失败:', error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: '数据验证失败', details: error.errors },
@@ -70,44 +74,6 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(
       { error: '注册失败，请稍后重试' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function GET() {
-  try {
-    const students = await prisma.student.findMany({
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            avatar: true,
-          },
-        },
-        coach: {
-          include: {
-            user: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        id: 'desc',
-      },
-    });
-
-    return NextResponse.json({ students });
-  } catch (error) {
-    console.error('获取学员列表失败:', error);
-    return NextResponse.json(
-      { error: '获取学员列表失败' },
       { status: 500 }
     );
   }

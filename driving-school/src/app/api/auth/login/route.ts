@@ -37,12 +37,20 @@ export async function POST(request: Request) {
     }
 
     let studentId = null;
+    let coachId = null;
+
     if (user.role === 'STUDENT') {
       const student = await prisma.student.findUnique({
         where: { userId: user.id },
         select: { id: true },
       });
       studentId = student?.id || null;
+    } else if (user.role === 'COACH') {
+      const coach = await prisma.coach.findUnique({
+        where: { userId: user.id },
+        select: { id: true },
+      });
+      coachId = coach?.id || null;
     }
 
     const { password, ...userWithoutPassword } = user;
@@ -51,6 +59,7 @@ export async function POST(request: Request) {
       message: '登录成功',
       user: userWithoutPassword,
       studentId,
+      coachId,
     });
   } catch (error) {
     console.error('登录失败:', error);
