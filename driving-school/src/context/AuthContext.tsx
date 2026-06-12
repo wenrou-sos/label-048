@@ -15,7 +15,7 @@ interface AuthContextType {
   user: User | null;
   studentId: number | null;
   coachId: number | null;
-  login: (user: User, studentId?: number, coachId?: number) => void;
+  login: (user: User, studentId?: number | null, coachId?: number | null) => void;
   logout: () => void;
   isLoading: boolean;
 }
@@ -36,26 +36,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
-        if (storedStudentId) setStudentId(parseInt(storedStudentId, 10));
-        if (storedCoachId) setCoachId(parseInt(storedCoachId, 10));
       } catch (e) {
         console.error('Failed to parse stored user data:', e);
+      }
+    }
+    if (storedStudentId) {
+      const parsed = parseInt(storedStudentId, 10);
+      if (!isNaN(parsed)) {
+        setStudentId(parsed);
+      }
+    }
+    if (storedCoachId) {
+      const parsed = parseInt(storedCoachId, 10);
+      if (!isNaN(parsed)) {
+        setCoachId(parsed);
       }
     }
     setIsLoading(false);
   }, []);
 
-  const login = (userData: User, newStudentId?: number, newCoachId?: number) => {
+  const login = (userData: User, newStudentId?: number | null, newCoachId?: number | null) => {
     setUser(userData);
     localStorage.setItem('user', JSON.stringify(userData));
 
-    if (newStudentId !== undefined) {
+    if (typeof newStudentId === 'number' && !isNaN(newStudentId)) {
       setStudentId(newStudentId);
       localStorage.setItem('studentId', newStudentId.toString());
+    } else {
+      setStudentId(null);
+      localStorage.removeItem('studentId');
     }
-    if (newCoachId !== undefined) {
+    if (typeof newCoachId === 'number' && !isNaN(newCoachId)) {
       setCoachId(newCoachId);
       localStorage.setItem('coachId', newCoachId.toString());
+    } else {
+      setCoachId(null);
+      localStorage.removeItem('coachId');
     }
   };
 
