@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
 
 interface Schedule {
   id: number;
@@ -71,9 +72,28 @@ export default function CoachDetailPage({ params }: { params: { id: string } }) 
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingMessage, setBookingMessage] = useState('');
 
+  const { user, studentId: authStudentId } = useAuth();
+  const [reviewEligibility, setReviewEligibility] = useState<{
+    canReview: boolean;
+    hasCompletedBooking: boolean;
+    hasExistingReview: boolean;
+    existingReview: Review | null;
+  } | null>(null);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState('');
+
   useEffect(() => {
     fetchCoach();
   }, [params.id]);
+
+  useEffect(() => {
+    if (activeTab === 'reviews') {
+      checkReviewEligibility();
+    }
+  }, [activeTab, authStudentId, user, params.id]);
 
   const fetchCoach = async () => {
     try {
@@ -84,6 +104,61 @@ export default function CoachDetailPage({ params }: { params: { id: string } }) 
       console.error('获取教练详情失败:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkReviewEligibility = async () => {
+    if (!user || user.role !== 'STUDENT' || !authStudentId) {
+      setReviewEligibility(null);
+      return;
+    }
+    try {
+      const response = await fetch(
+        `/api/reviews?studentId=${authStudentId}&coachId=${params.id}`
+      );
+      const data = await response.json();
+      setReviewEligibility(data);
+      if (data.hasExistingReview && data.existingReview) {
+        setReviewRating(data.existingReview.rating);
+        setReviewComment(data.existingReview.comment || '');
+      }
+    } catch (error) {
+      console.error('检查评价资格失败:', error);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!authStudentId) return;
+
+    setReviewSubmitting(true);
+    setReviewMessage('');
+
+    try {
+      const response = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: authStudentId,
+          coachId: parseInt(params.id, 10),
+          rating: reviewRating,
+          comment: reviewComment,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '评价失败');
+      }
+
+      setReviewMessage('评价提交成功！');
+      setShowReviewForm(false);
+      fetchCoach();
+      checkReviewEligibility();
+    } catch (error) {
+      setReviewMessage(error instanceof Error ? error.message : '评价失败');
+    } finally {
+      setReviewSubmitting(false);
     }
   };
 
@@ -387,10 +462,118 @@ export default function CoachDetailPage({ params }: { params: { id: string } }) 
 
       {activeTab === 'reviews' && (
         <div className="card p-6">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">学员评价</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-bold text-gray-800">学员评价</h2>
+            {user && user.role === 'STUDENT' && reviewEligibility && (
+              <>
+                {reviewEligibility.canReview && !showReviewForm && (
+                  <button
+                    onClick={() => {
+                      setShowReviewForm(true);
+                      setReviewMessage('');
+                    }}
+                    className="btn-primary text-sm px-4 py-2"
+                  >
+                    ✍️ 写评价
+                  </button>
+                )}
+                {reviewEligibility.hasExistingReview && reviewEligibility.existingReview && (
+                  <span className="text-sm text-green-600 bg-green-50 px-3 py-1 rounded-full">
+                    ✓ 已评价
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+
+          {user && user.role === 'STUDENT' && reviewEligibility && !reviewEligibility.hasCompletedBooking && !reviewEligibility.hasExistingReview && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 text-sm text-gray-600">
+              <span className="text-gray-400 mr-2">💡</span>
+              完成该教练的课程后即可发表评价
+            </div>
+          )}
+
+          {showReviewForm && reviewEligibility?.canReview && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6">
+              <h3 className="font-bold text-gray-800 mb-4">发表评价</h3>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  评分
+                </label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setReviewRating(star)}
+                      className="text-3xl transition-transform hover:scale-110"
+                    >
+                      <span className={star <= reviewRating ? 'text-yellow-400' : 'text-gray-300'}>
+                        ★
+                      </span>
+                    </button>
+                  ))}
+                  <span className="ml-2 text-gray-600 self-center">
+                    {reviewRating} 星
+                  </span>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  评价内容（可选）
+                </label>
+                <textarea
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  rows={4}
+                  maxLength={500}
+                  placeholder="分享一下你的学车体验吧..."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                />
+                <p className="text-xs text-gray-400 mt-1 text-right">
+                  {reviewComment.length}/500
+                </p>
+              </div>
+
+              {reviewMessage && (
+                <div
+                  className={`p-3 rounded-lg mb-4 text-sm ${
+                    reviewMessage.includes('成功')
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-red-100 text-red-700'
+                  }`}
+                >
+                  {reviewMessage}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowReviewForm(false);
+                    setReviewMessage('');
+                  }}
+                  disabled={reviewSubmitting}
+                  className="flex-1 btn-secondary disabled:opacity-50"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleSubmitReview}
+                  disabled={reviewSubmitting}
+                  className="flex-1 btn-primary disabled:opacity-50"
+                >
+                  {reviewSubmitting ? '提交中...' : '提交评价'}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-4">
             {coach.reviews.length === 0 ? (
-              <p className="text-gray-500">暂无评价</p>
+              <p className="text-gray-500 text-center py-8">暂无评价</p>
             ) : (
               coach.reviews.map((review) => (
                 <div key={review.id} className="p-4 bg-gray-50 rounded-lg">
