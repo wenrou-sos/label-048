@@ -138,6 +138,17 @@ export default function Navbar() {
                         </Link>
                       </>
                     )}
+                    {user.role === 'ADMIN' && (
+                      <>
+                        <Link
+                          href="/admin/coach-review"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          onClick={() => setIsUserMenuOpen(false)}
+                        >
+                          教练审核
+                        </Link>
+                      </>
+                    )}
                     <hr className="my-2" />
                     <button
                       onClick={handleLogout}

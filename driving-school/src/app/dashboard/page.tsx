@@ -28,6 +28,8 @@ interface CoachData {
   rating: number;
   totalReviews: number;
   status: string;
+  reviewNote: string | null;
+  reviewedAt: string | null;
   students: any[];
   bookings: any[];
 }
@@ -132,6 +134,23 @@ export default function DashboardPage() {
             {user.role === 'STUDENT' && '学员中心'}
             {user.role === 'COACH' && '教练工作台'}
             {user.role === 'ADMIN' && '管理后台'}
+            {user.role === 'COACH' && coachData && (
+              <span
+                className={`ml-2 px-3 py-1 rounded-full text-xs font-medium ${
+                  coachData.status === 'pending'
+                    ? 'bg-yellow-100 text-yellow-700'
+                    : coachData.status === 'active'
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-red-100 text-red-700'
+                }`}
+              >
+                {coachData.status === 'pending'
+                  ? '审核中'
+                  : coachData.status === 'active'
+                  ? '已认证'
+                  : '未通过'}
+              </span>
+            )}
           </p>
         </div>
         <button
@@ -349,6 +368,82 @@ export default function DashboardPage() {
 
       {user.role === 'COACH' && coachData && (
         <>
+          {coachData.status === 'pending' && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-2xl">⏳</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-yellow-800 mb-2">
+                    资质审核中
+                  </h2>
+                  <p className="text-yellow-700 mb-2">
+                    您的教练资质正在由管理员进行审核，请耐心等待。审核通过后，您将可以使用全部教练功能。
+                  </p>
+                  <p className="text-sm text-yellow-600">
+                    审核通常在 1-2 个工作日内完成，如有疑问请联系系统管理员。
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {coachData.status === 'rejected' && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-2xl">❌</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-red-800 mb-2">
+                    审核未通过
+                  </h2>
+                  <p className="text-red-700 mb-2">
+                    很遗憾，您的教练资质审核未通过。
+                  </p>
+                  {coachData.reviewNote && (
+                    <div className="bg-white border border-red-200 rounded-lg p-4 mb-3">
+                      <div className="text-xs text-red-500 mb-1">驳回原因：</div>
+                      <p className="text-red-700">{coachData.reviewNote}</p>
+                    </div>
+                  )}
+                  {coachData.reviewedAt && (
+                    <p className="text-xs text-red-400 mb-2">
+                      审核时间：{new Date(coachData.reviewedAt).toLocaleString('zh-CN')}
+                    </p>
+                  )}
+                  <p className="text-sm text-red-600">
+                    请检查您提交的资料是否完整准确，或联系管理员了解详情。您可以尝试重新注册提交。
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {coachData.status === 'active' && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-2xl">✅</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-green-800 mb-1">
+                    资质已认证
+                  </h2>
+                  {coachData.reviewedAt && (
+                    <p className="text-sm text-green-600 mb-2">
+                      认证时间：{new Date(coachData.reviewedAt).toLocaleString('zh-CN')}
+                    </p>
+                  )}
+                  {coachData.reviewNote && (
+                    <p className="text-sm text-green-700">{coachData.reviewNote}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="card p-6">
               <div className="text-sm text-gray-500 mb-1">学员数量</div>
@@ -447,6 +542,12 @@ export default function DashboardPage() {
 
       {user.role === 'ADMIN' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Link href="/admin/coach-review" className="card p-6 hover:shadow-lg transition-shadow relative">
+            <div className="text-3xl mb-3">🔍</div>
+            <h3 className="font-bold text-gray-800">教练审核</h3>
+            <p className="text-sm text-gray-500 mt-1">审核教练注册申请</p>
+            <div className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+          </Link>
           <Link href="/students" className="card p-6 hover:shadow-lg transition-shadow">
             <div className="text-3xl mb-3">👥</div>
             <h3 className="font-bold text-gray-800">学员管理</h3>

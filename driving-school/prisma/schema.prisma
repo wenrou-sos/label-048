@@ -113,8 +113,11 @@ model Coach {
   bio            String?
   specialties    String?
   pricePerHour   Float    @default(100)
-  status         String   @default("active")
   avatar         String?
+  status         String   @default("pending")
+  reviewNote     String?
+  reviewedAt     DateTime?
+  reviewedBy     Int?
 
   students       Student[]
   courses        Course[]
